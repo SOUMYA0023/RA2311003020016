@@ -1,15 +1,5 @@
-/**
- * middleware/errorHandler.ts
- * Global Express error handler middleware.
- * Must have 4 parameters to be recognized as an error handler by Express.
- */
-
 import { Request, Response, NextFunction } from "express";
 import { Log } from "../../logging_middleware_local/logger";
-
-/**
- * Catches any error passed to next(error) and returns a structured JSON response.
- */
 export function errorHandler(
   err: Error,
   req: Request,

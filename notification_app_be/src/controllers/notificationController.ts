@@ -1,20 +1,9 @@
-/**
- * controllers/notificationController.ts
- * Handles HTTP request/response for notification endpoints.
- * Delegates all business logic to the service layer.
- */
-
 import { Request, Response, NextFunction } from "express";
 import { getNotifications, getPriorityNotifications } from "../services/notificationService";
 import { NotificationQueryParams, NotificationType } from "../domain/notification.types";
 import { config } from "../config/env";
 import { Log } from "../../logging_middleware_local/logger";
 
-/**
- * GET /notifications
- * Fetches notifications from the external API and returns them as-is.
- * Supports query params: limit, page, notification_type
- */
 export async function getAllNotifications(
   req: Request,
   res: Response,
@@ -60,11 +49,6 @@ export async function getAllNotifications(
   }
 }
 
-/**
- * GET /notifications/priority?n=10
- * Fetches all notifications, applies priority sort, returns top N.
- * n defaults to config.defaultTopN if not provided.
- */
 export async function getPriorityNotificationsList(
   req: Request,
   res: Response,

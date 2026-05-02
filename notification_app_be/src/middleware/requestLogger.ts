@@ -1,15 +1,5 @@
-/**
- * middleware/requestLogger.ts
- * Express middleware that logs every incoming HTTP request.
- * Uses the logging_middleware Log() function.
- */
-
 import { Request, Response, NextFunction } from "express";
 import { Log } from "../../logging_middleware_local/logger";
-
-/**
- * Logs each incoming request: method, URL, query params, and response time.
- */
 export function requestLogger(req: Request, res: Response, next: NextFunction): void {
   const start = Date.now();
   const { method, originalUrl, query } = req;
