@@ -24,16 +24,9 @@ export async function getAllNotifications(
     await Log("backend", "info", "controller", `GET /notifications — query: ${JSON.stringify(req.query)}`);
 
     // Parse and validate query params
+    // Note: external API does not support a 'limit' param beyond its default (20).
+    // We support 'page' and 'notification_type' for filtering.
     const params: NotificationQueryParams = {};
-
-    if (req.query.limit !== undefined) {
-      const limit = parseInt(req.query.limit as string, 10);
-      if (isNaN(limit) || limit <= 0) {
-        res.status(400).json({ error: "Query param 'limit' must be a positive integer" });
-        return;
-      }
-      params.limit = limit;
-    }
 
     if (req.query.page !== undefined) {
       const page = parseInt(req.query.page as string, 10);

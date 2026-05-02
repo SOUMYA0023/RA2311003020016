@@ -2,6 +2,11 @@
  * repository/notificationRepository.ts
  * Responsible for all HTTP communication with the external evaluation API.
  * No business logic here — only data fetching.
+ *
+ * External API constraints (discovered via probing):
+ *  - Default page size: 20 notifications per page
+ *  - limit param: max 10 (use page-based pagination instead)
+ *  - Empty array signals last page
  */
 
 import axios from "axios";
@@ -24,11 +29,10 @@ const apiClient = axios.create({
 });
 
 /**
- * Fetches notifications from the external evaluation API.
- * Forwards any provided query parameters directly.
+ * Fetches one page of notifications from the external evaluation API.
  *
- * @param params - Optional query parameters: limit, page, notification_type
- * @returns Array of raw Notification objects
+ * @param params - Optional query parameters: page, notification_type
+ * @returns Array of raw Notification objects for that page
  */
 export async function fetchNotifications(
   params: NotificationQueryParams = {}
@@ -37,9 +41,9 @@ export async function fetchNotifications(
 
   // Build query params object, omitting undefined values
   const queryParams: Record<string, string | number> = {};
-  if (params.limit !== undefined) queryParams.limit = params.limit;
   if (params.page !== undefined) queryParams.page = params.page;
-  if (params.notification_type !== undefined) queryParams.notification_type = params.notification_type;
+  if (params.notification_type !== undefined)
+    queryParams.notification_type = params.notification_type;
 
   try {
     const response = await apiClient.get<ExternalApiResponse>("/notifications", {
@@ -57,10 +61,9 @@ export async function fetchNotifications(
 
     return notifications;
   } catch (error: unknown) {
-    const message =
-      axios.isAxiosError(error)
-        ? `External API error: ${error.response?.status ?? "no response"} — ${error.message}`
-        : `Unexpected error fetching notifications: ${String(error)}`;
+    const message = axios.isAxiosError(error)
+      ? `External API error: ${error.response?.status ?? "no response"} — ${error.message}`
+      : `Unexpected error fetching notifications: ${String(error)}`;
 
     await Log("backend", "error", "repository", message);
     throw new Error(message);
@@ -68,36 +71,64 @@ export async function fetchNotifications(
 }
 
 /**
- * Fetches ALL notifications from the external API without type filtering.
- * Used by the priority endpoint which needs all types to sort across them.
- * Makes paginated requests if needed to ensure completeness.
+ * Fetches ALL notifications from the external API using pagination.
+ * The external API returns 20 per page by default; we paginate until
+ * an empty page is returned.
  *
- * @returns All available notifications
+ * Used by the priority endpoint which needs the full dataset to sort across types.
+ *
+ * @returns All available notifications (deduplicated by ID)
  */
 export async function fetchAllNotifications(): Promise<Notification[]> {
-  await Log("backend", "debug", "repository", "Fetching all notifications for priority sorting");
+  await Log(
+    "backend",
+    "debug",
+    "repository",
+    "Fetching all notifications for priority sorting (paginated)"
+  );
+
+  const all: Notification[] = [];
+  const seenIds = new Set<string>();
+  let page = 1;
+  const MAX_PAGES = 20; // safety cap to prevent infinite loops
 
   try {
-    // Fetch with a large limit to get all notifications in one pass
-    const response = await apiClient.get<ExternalApiResponse>("/notifications", {
-      params: { limit: 100, page: 1 },
-    });
+    while (page <= MAX_PAGES) {
+      const response = await apiClient.get<ExternalApiResponse>("/notifications", {
+        params: { page },
+      });
 
-    const notifications = response.data?.notifications ?? [];
+      const batch = response.data?.notifications ?? [];
+
+      // Empty page means we've reached the end
+      if (batch.length === 0) break;
+
+      // Deduplicate by ID in case pages overlap
+      for (const n of batch) {
+        if (!seenIds.has(n.ID)) {
+          seenIds.add(n.ID);
+          all.push(n);
+        }
+      }
+
+      // If the batch is smaller than the expected page size (20), we're on the last page
+      if (batch.length < 20) break;
+
+      page++;
+    }
 
     await Log(
       "backend",
       "info",
       "repository",
-      `Fetched ${notifications.length} total notifications for priority processing`
+      `Fetched ${all.length} total notifications across ${page} page(s) for priority processing`
     );
 
-    return notifications;
+    return all;
   } catch (error: unknown) {
-    const message =
-      axios.isAxiosError(error)
-        ? `External API error fetching all: ${error.response?.status ?? "no response"} — ${error.message}`
-        : `Unexpected error: ${String(error)}`;
+    const message = axios.isAxiosError(error)
+      ? `External API pagination error (page ${page}): ${error.response?.status ?? "no response"} — ${error.message}`
+      : `Unexpected error: ${String(error)}`;
 
     await Log("backend", "error", "repository", message);
     throw new Error(message);

@@ -14,9 +14,10 @@ export interface Notification {
 /** Allowed notification types from the external API */
 export type NotificationType = "Event" | "Result" | "Placement";
 
-/** Query parameters accepted by GET /notifications */
+/** Query parameters accepted by GET /notifications
+ *  Note: external API page size is fixed at 20 — limit is not supported.
+ */
 export interface NotificationQueryParams {
-  limit?: number;
   page?: number;
   notification_type?: NotificationType;
 }
